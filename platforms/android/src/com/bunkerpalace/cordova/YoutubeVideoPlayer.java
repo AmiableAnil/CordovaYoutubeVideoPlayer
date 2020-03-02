@@ -1,5 +1,13 @@
 package com.bunkerpalace.cordova;
 
+import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
+
+import com.google.android.youtube.player.YouTubeIntents;
+import com.keyes.youtube.OpenYouTubePlayerActivity;
+
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.ConfigXmlParser;
 import org.apache.cordova.CordovaPlugin;
@@ -7,67 +15,97 @@ import org.apache.cordova.CordovaPreferences;
 import org.apache.cordova.PluginResult;
 import org.json.JSONArray;
 import org.json.JSONException;
-import android.content.Context;
-import android.content.Intent;
-import android.net.Uri;
-import com.google.android.youtube.player.YouTubeIntents;
-import com.keyes.youtube.OpenYouTubePlayerActivity;
-import android.os.Build;
-import android.util.Log;
+import org.json.JSONObject;
 
 public class YoutubeVideoPlayer extends CordovaPlugin {
 
-	private CallbackContext callbackContext;
+    private CallbackContext callbackContext;
 
-	@Override
+    private EventListenerImpl listener;
+
+    @Override
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
-		
-		if(action.equals("openVideo")) {
-			String url = args.getString(0);
-        	this.openVideo(url);
-			this.callbackContext = callbackContext;
-        	return true;
+
+        if (action.equals("openVideo")) {
+            String url = args.getString(0);
+            this.openVideo(url);
+            this.callbackContext = callbackContext;
+
+            if (listener != null) {
+                CallbackManager.getInstance().unregister(listener);
+            } else {
+                listener = new EventListenerImpl();
+            }
+            CallbackManager.getInstance().registerListener(listener);
+            return true;
         }
-		return false;
-	}
+        return false;
+    }
 
-	public void onActivityResult(int requestCode, int resultCode, Intent intent) {
-		if (requestCode == 242) {
-			if (resultCode == this.cordova.getActivity().RESULT_OK) {
-				this.callbackContext.success();
-			} else {
-				this.callbackContext.error("Error");
-			}
-		}
-	}
+    public void onActivityResult(int requestCode, int resultCode, Intent intent) {
+        if (requestCode == 242) {
+            if (resultCode == this.cordova.getActivity().RESULT_OK) {
+                this.callbackContext.success();
+            } else {
+                this.callbackContext.error("Error");
+            }
+        }
+    }
 
-	private void openVideo(String videoId) {
-		Intent intent = createYoutubeIntent(videoId);
-		cordova.startActivityForResult(this, intent, 242);
-	}
+    public void onDestroy() {
+        if (listener != null) {
+            CallbackManager.getInstance().unregister(listener);
+        }
+    }
 
-	private Intent createYoutubeIntent(String videoId) {
-		if (Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP){
-			Intent intent;
-			Context cordovaContext = cordova.getActivity();
-			String version = YouTubeIntents.getInstalledYouTubeVersionName(cordovaContext);
-			if(version != null && version.startsWith("11.16") && YouTubeIntents.canResolvePlayVideoIntent(cordovaContext)) {
-				intent = YouTubeIntents.createPlayVideoIntent(cordovaContext, videoId);
-			} else {
-				if(YouTubeIntents.canResolvePlayVideoIntentWithOptions(cordovaContext)){
-					intent = YouTubeIntents.createPlayVideoIntentWithOptions(cordovaContext, videoId, true, true);
-				} else {
-					intent = new Intent(Intent.ACTION_VIEW, Uri.parse("http://www.youtube.com/watch?v=" + videoId), cordovaContext, YouTubeActivity.class);
-					intent.putExtra("videoId", videoId);
-	                ConfigXmlParser parser = new ConfigXmlParser();
-	                parser.parse(cordovaContext);
-	                CordovaPreferences prefs = parser.getPreferences();
-	                intent.putExtra("YouTubeApiId", prefs.getString("YouTubeDataApiKey","YOUTUBE_API_KEY"));
-				}
-			}
-			return intent;
-		}
+    private void openVideo(String videoId) {
+        Intent intent = createYoutubeIntent(videoId);
+        cordova.startActivityForResult(this, intent, 242);
+    }
 
-		return new Intent(null, Uri.parse("ytv://" + videoId), cordova.getActivity(), OpenYouTubePlayerActivity.class);
-	}
+    private Intent createYoutubeIntent(String videoId) {
+        if (Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            Intent intent;
+            Context cordovaContext = cordova.getActivity();
+            String version = YouTubeIntents.getInstalledYouTubeVersionName(cordovaContext);
+            if (version != null && version.startsWith("11.16") && YouTubeIntents.canResolvePlayVideoIntent(cordovaContext)) {
+                intent = YouTubeIntents.createPlayVideoIntent(cordovaContext, videoId);
+            } else {
+//				if(YouTubeIntents.canResolvePlayVideoIntentWithOptions(cordovaContext)){
+//					intent = YouTubeIntents.createPlayVideoIntentWithOptions(cordovaContext, videoId, true, true);
+//				} else {
+                intent = new Intent(Intent.ACTION_VIEW, Uri.parse("http://www.youtube.com/watch?v=" + videoId), cordovaContext, YouTubeActivity.class);
+                intent.putExtra("videoId", videoId);
+                ConfigXmlParser parser = new ConfigXmlParser();
+                parser.parse(cordovaContext);
+                CordovaPreferences prefs = parser.getPreferences();
+                intent.putExtra("YouTubeApiId", prefs.getString("YouTubeDataApiKey", "YOUTUBE_API_KEY"));
+//				}
+            }
+            return intent;
+        }
+
+        return new Intent(null, Uri.parse("ytv://" + videoId), cordova.getActivity(), OpenYouTubePlayerActivity.class);
+    }
+
+    private class EventListenerImpl implements CallbackManager.EventListener {
+
+        @Override
+        public void consumeEvents(String actionType) {
+            if (actionType == null) {
+                return;
+            }
+            JSONObject jsonObject = new JSONObject();
+            try {
+                jsonObject.put("actionType", actionType);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+
+            final PluginResult result = new PluginResult(PluginResult.Status.OK, jsonObject);
+            result.setKeepCallback(true);
+            callbackContext.sendPluginResult(result);
+        }
+    }
+
 }

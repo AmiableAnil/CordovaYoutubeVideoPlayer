@@ -4,6 +4,8 @@
 
 **This fork works on Android 6, and does not force landscape mode on Android.**
 
+https://ionicframework.com/docs/native/youtube-video-player
+https://developers.google.com/youtube/android/player/reference/com/google/android/youtube/player/YouTubePlayer.PlaybackEventListener
 
 iOS plugin uses **XCDYouTubeKit** by Cédric Luthi:  
 https://github.com/0xced/XCDYouTubeKit
